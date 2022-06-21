@@ -28,7 +28,25 @@ g_class2color = {'ceiling':	[0,255,0],
                  'clutter':     [50,50,50]} 
 g_easy_view_labels = [7,8,9,10,11,1]
 g_label2color = {g_classes.index(cls): g_class2color[cls] for cls in g_classes}
+label_to_names = {0: 'ceiling',
+                  1: 'floor',
+                  2: 'wall',
+                  3: 'beam',
+                  4: 'column',
+                  5: 'window',
+                  6: 'door',
+                  7: 'table',
+                  8: 'chair',
+                  9: 'sofa',
+                  10: 'bookcase',
+                  11: 'board',
+                  12: 'clutter'}
 
+# Initiate a bunch of variables converning class labels
+label_values = np.sort([key for key, value in label_to_names.items()])  # 0,1,2,3,...
+label_names = [label_to_names[key] for key in label_values]  # ceiling, floor, wall, beam...
+label_to_idx = {l: i for i, l in enumerate(label_values)}  # '0':0, '1':1, '2':2 ...
+name_to_idx = {name: i for i, name in enumerate(label_names)}
 
 # -----------------------------------------------------------------------------
 # CONVERT ORIGINAL DATA TO OUR DATA_LABEL FILES
@@ -231,7 +249,7 @@ def room2blocks_plus_normalized(data_label, num_point, block_size, stride,
     """
     data = data_label[:,0:6]
     data[:,3:6] /= 255.0
-    label = data_label[:,-1].astype(np.uint8)
+    label = data_label[:,-2].astype(np.uint8)
     max_room_x = max(data[:,0])
     max_room_y = max(data[:,1])
     max_room_z = max(data[:,2])
@@ -262,6 +280,81 @@ def room2blocks_wrapper_normalized(data_label_filename, num_point, block_size=1.
         exit()
     return room2blocks_plus_normalized(data_label, num_point, block_size, stride,
                                        random_sample, sample_num, sample_aug)
+
+def room2blocks_wrapper_normalized_txt(data_label_filename, num_point, block_size=1.0, stride=1.0):
+    file_name = os.listdir(data_label_filename)
+    data_label = None
+    ins_idx = 1
+    for file in file_name:
+        txt = os.path.join(data_label_filename, file)
+        class_name = os.path.splitext(file)[0].split('_')[0]
+        if class_name not in label_names:  # note: in some room there is 'staris' class
+            class_name = 'clutter'
+        pc = np.loadtxt(txt)
+        labels = np.ones((pc.shape[0], 1)) * name_to_idx[class_name]
+        ins_labels = np.ones((pc.shape[0], 1)) * ins_idx
+        # print (file)
+        # print (pc.shape)
+        # print (labels.shape)
+        pc = np.append(pc, labels, axis=-1)
+        pc = np.append(pc, ins_labels, axis=-1)
+        ins_idx += 1
+        data_label = pc if data_label is None else np.append(data_label, pc, axis=0)
+        # data_label.append(np.loadtxt(txt))
+    xyz_min = np.amin(data_label, axis=0)[0:3]
+    data_label[:, 0:3] -= xyz_min
+    return room_to_blocks(data_label, num_point, block_size, stride)
+
+
+def sample_cloud(cloud, num_samples):
+    n = cloud.shape[0]
+    if n >= num_samples:
+        indices = np.random.choice(n, num_samples, replace=False)
+    else:
+        indices = np.random.choice(n, num_samples - n, replace=True)
+        indices = list(range(n)) + list(indices)
+    sampled = cloud[indices, :]
+    return sampled
+
+
+def room_to_blocks(cloud, num_points, size=1.0, stride=0.5, threshold=100):
+    cloud[:, 3:6] /= 255.0
+    limit = np.amax(cloud[:, 0:3], axis=0)
+    width = int(np.ceil((limit[0] - size) / stride)) + 1
+    depth = int(np.ceil((limit[1] - size) / stride)) + 1
+    cells = [(x * stride, y * stride) for x in range(width) for y in range(depth)]
+    blocks = []
+    for (x, y) in cells:
+        xcond = (cloud[:, 0] <= x + size) & (cloud[:, 0] >= x)
+        ycond = (cloud[:, 1] <= y + size) & (cloud[:, 1] >= y)
+        cond  = xcond & ycond
+        if np.sum(cond) < threshold:
+            continue
+        block = cloud[cond, :]
+        block = sample_cloud(block, num_points)
+        blocks.append(block)
+    blocks = np.stack(blocks, axis=0)
+    # A batch should have shape of BxNx14, where
+    # [0:3] - global coordinates
+    # [3:6] - block normalized coordinates (centered at Z-axis)
+    # [6:9] - RGB colors
+    # [9:12] - room normalized coordinates
+    # [12:14] - semantic and instance labels
+    num_blocks = blocks.shape[0]
+    batch = np.zeros((num_blocks, num_points, 14))
+    for b in range(num_blocks):
+        minx = min(blocks[b, :, 0])
+        miny = min(blocks[b, :, 1])
+        batch[b, :, 3]  = blocks[b, :, 0] - (minx + size * 0.5)
+        batch[b, :, 4]  = blocks[b, :, 1] - (miny + size * 0.5)
+        batch[b, :, 9]  = blocks[b, :, 0] / limit[0]
+        batch[b, :, 10] = blocks[b, :, 1] / limit[1]
+        batch[b, :, 11] = blocks[b, :, 2] / limit[2]
+    batch[:,:, 0:3] = blocks[:,:,0:3]
+    batch[:,:, 5:9] = blocks[:,:,2:6]
+    batch[:,:, 12:] = blocks[:,:,6:8]
+    return batch
+
 
 def room2samples(data, label, sample_num_point):
     """ Prepare whole room samples.
