@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import sys
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = '/content/drive/MyDrive/npy/'
 ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
@@ -10,8 +10,8 @@ import indoor3d_util
 
 # Constants
 data_dir = os.path.join(ROOT_DIR, 'data')
-indoor3d_data_dir = os.path.join(data_dir, 'stanford_indoor3d')
-NUM_POINT = 4096
+indoor3d_data_dir = '/content/drive/MyDrive/npy/s/'
+NUM_POINT = 40960
 H5_BATCH_SIZE = 1000
 data_dim = [NUM_POINT, 9]
 label_dim = [NUM_POINT]
@@ -73,7 +73,7 @@ def insert_batch(data, label, last_batch=False):
 sample_cnt = 0
 for i, data_label_filename in enumerate(data_label_files):
     print(data_label_filename)
-    data, label = indoor3d_util.room2blocks_wrapper_normalized(data_label_filename, NUM_POINT, block_size=1.0, stride=0.5,
+    data, label = indoor3d_util.room2blocks_wrapper_normalized(data_label_filename, NUM_POINT, block_size=1.5, stride=0.5,
                                                  random_sample=False, sample_num=None)
     print('{0}, {1}'.format(data.shape, label.shape))
     for _ in range(data.shape[0]):
