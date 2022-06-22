@@ -286,10 +286,14 @@ def room2blocks_wrapper_normalized_txt(data_label_filename, num_point, block_siz
     data_label = None
     ins_idx = 1
     for file in file_name:
+        if os.path.splitext(file)[1] != '.txt':
+            print (file)
+            continue
         txt = os.path.join(data_label_filename, file)
         class_name = os.path.splitext(file)[0].split('_')[0]
         if class_name not in label_names:  # note: in some room there is 'staris' class
             class_name = 'clutter'
+        # print ('loding:' + txt)
         pc = np.loadtxt(txt)
         labels = np.ones((pc.shape[0], 1)) * name_to_idx[class_name]
         ins_labels = np.ones((pc.shape[0], 1)) * ins_idx

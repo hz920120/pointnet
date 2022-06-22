@@ -110,11 +110,15 @@ for i, data_label_filename in enumerate(data_label_files):
     path = os.path.normpath(data_label_filename)
     path1 = path.split(os.sep)[-3]
     name = path.split(os.sep)[-2]
-    out_path = data_dir + '/' + path1
+    out_path = data_dir
     if not os.path.exists(out_path):
         os.mkdir(out_path)
-    h5_filename = out_path + '/' + name + '.h5'
+    h5_filename = out_path + '/' + path1 + '_' + name + '.h5'
     print ('save path : {0}'.format(h5_filename))
+    file_exists = os.path.exists(h5_filename)
+    if file_exists:
+        print('{0} exists'.format(h5_filename))
+        continue
     batch = indoor3d_util.room2blocks_wrapper_normalized_txt(data_label_filename, NUM_POINT, block_size=1.5, stride=0.8)
     print (batch.shape)
     fout_room.write(os.path.basename(out_path)[0:-4] + '\n')
